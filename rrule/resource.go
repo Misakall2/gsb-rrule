@@ -2,6 +2,7 @@ package rrule
 
 import (
 	"fmt"
+	"sort"
 	"time"
 )
 
@@ -15,6 +16,51 @@ type Interval struct {
 // Overlaps reports whether two half-open intervals share any time.
 func (i Interval) Overlaps(j Interval) bool {
 	return i.Start.Before(j.End) && j.Start.Before(i.End)
+}
+
+// touches reports whether j starts at or before i ends. Two spans that
+// merely meet (i.End == j.Start) touch but do not overlap; busy-time
+// merging treats them as one continuous block.
+func (i Interval) touches(j Interval) bool {
+	return !j.Start.After(i.End)
+}
+
+// MergeBusy unions overlapping or adjacent intervals into ordered,
+// disjoint busy blocks. Adjacent means one block ends exactly when the
+// next begins; they become a single block even though Overlaps is
+// false for them, matching the half-open boundary convention. Zero
+// duration intervals carry no occupancy and are dropped.
+func MergeBusy(ivs []Interval) []Interval {
+	if len(ivs) == 0 {
+		return nil
+	}
+	sorted := make([]Interval, 0, len(ivs))
+	for _, iv := range ivs {
+		if iv.End.After(iv.Start) {
+			sorted = append(sorted, iv)
+		}
+	}
+	if len(sorted) == 0 {
+		return nil
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].Start.Equal(sorted[j].Start) {
+			return sorted[i].End.Before(sorted[j].End)
+		}
+		return sorted[i].Start.Before(sorted[j].Start)
+	})
+	merged := []Interval{sorted[0]}
+	for _, iv := range sorted[1:] {
+		cur := &merged[len(merged)-1]
+		if cur.touches(iv) {
+			if iv.End.After(cur.End) {
+				cur.End = iv.End
+			}
+			continue
+		}
+		merged = append(merged, iv)
+	}
+	return merged
 }
 
 // OccurrenceInterval converts a single occurrence to a UTC instant
@@ -85,6 +131,62 @@ func Intervals(s *Schedule, from, to time.Time, loc *time.Location) ([]Interval,
 		}
 	}
 	return out, nil
+}
+
+// Booking is one schedule placed on a resource. Loc pins a floating
+// schedule's wall clocks to the resource zone and is ignored for
+// zoned or UTC schedules.
+type Booking struct {
+	Schedule *Schedule
+	Loc      *time.Location
+}
+
+// BusyIntervals expands every booking on one resource over the closed
+// occurrence window [from, to] and returns the merged busy time on the
+// UTC time line: overlapping blocks are united, and blocks that merely
+// meet end-to-start are also united (see MergeBusy). The result is
+// ordered, disjoint and clipped to [from, to).
+//
+// Occurrences starting up to a year before from are considered so that
+// an event already in progress at the start of the window still marks
+// the room busy. All-day blocks, timed events and floating events
+// pinned via Booking.Loc compare on equal footing, using the same
+// half-open boundary rules as Conflicts.
+func BusyIntervals(bookings []Booking, from, to time.Time) ([]Interval, error) {
+	if from.IsZero() || to.IsZero() {
+		return nil, fmt.Errorf("rrule: busy intervals require a finite [from, to] window")
+	}
+	if from.After(to) {
+		return nil, fmt.Errorf("rrule: from is after to")
+	}
+	from2 := from.AddDate(-1, 0, 0)
+	var all []Interval
+	for _, b := range bookings {
+		if b.Schedule == nil {
+			continue
+		}
+		ivs, err := Intervals(b.Schedule, from2, to, b.Loc)
+		if err != nil {
+			return nil, err
+		}
+		for _, iv := range ivs {
+			all = append(all, clipInterval(iv, from, to))
+		}
+	}
+	return MergeBusy(all), nil
+}
+
+// clipInterval restricts iv to the half-open window [from, to). A
+// span ending at or before from, or starting at or after to, becomes
+// a zero interval which MergeBusy drops.
+func clipInterval(iv Interval, from, to time.Time) Interval {
+	if iv.Start.Before(from) {
+		iv.Start = from
+	}
+	if iv.End.After(to) {
+		iv.End = to
+	}
+	return iv
 }
 
 // Conflicts reports whether a and b occupy the same resource at the

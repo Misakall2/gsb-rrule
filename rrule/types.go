@@ -114,6 +114,7 @@ type Schedule struct {
 	DTStart  time.Time
 	Rule     *Rule // nil means a one-shot event
 	ExDate   []time.Time
+	ExRule   []*Rule // recurrence rules identifying excluded occurrences
 	RDate    []time.Time
 	AllDay   bool          // date-only DTSTART; each occurrence occupies a whole day
 	Duration time.Duration // duration of a timed occurrence

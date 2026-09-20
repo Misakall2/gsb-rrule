@@ -54,6 +54,11 @@ func Expand(s *Schedule, from, to time.Time) ([]Occurrence, error) {
 	for _, e := range s.ExDate {
 		ex[naiveOf(e)] = true
 	}
+	for _, walls := range expandExRules(s, naiveOf(s.DTStart), untilW, toW) {
+		for _, w := range walls {
+			ex[w] = true
+		}
+	}
 
 	cands := s.Rule.naiveOccurrences(naiveOf(s.DTStart), untilW)
 
@@ -108,6 +113,52 @@ func Expand(s *Schedule, from, to time.Time) ([]Occurrence, error) {
 	return out, nil
 }
 
+// expandExRules materializes the wall-clock starts of every EXRULE.
+//
+// Each EXRULE shares the schedule DTSTART and obeys its own COUNT and
+// UNTIL (COUNT counts from DTSTART, exactly like the main rule). An
+// EXRULE without either bound is clamped to the earliest of the main
+// rule's UNTIL and the query window end, so exclusion generation can
+// never run away; the underlying period generator is also capped by
+// maxPeriods.
+func expandExRules(s *Schedule, start WallClock, mainUntil *WallClock, windowEnd WallClock) [][]WallClock {
+	if len(s.ExRule) == 0 {
+		return nil
+	}
+	out := make([][]WallClock, 0, len(s.ExRule))
+	for _, xr := range s.ExRule {
+		if xr == nil {
+			continue
+		}
+		var hard *WallClock
+		switch {
+		case xr.Count > 0 || !xr.Until.IsZero():
+			// The rule carries its own terminator.
+		case mainUntil != nil && mainUntil.Before(windowEnd):
+			u := *mainUntil
+			hard = &u
+		default:
+			hard = &windowEnd
+		}
+		var until *WallClock
+		if !xr.Until.IsZero() {
+			u := naiveOf(xr.Until)
+			if mainUntil != nil && mainUntil.Before(u) {
+				u = *mainUntil
+			}
+			until = &u
+		} else if hard != nil {
+			until = hard
+		}
+		walls := xr.generate(start, until, false)
+		if xr.Count > 0 && len(walls) > xr.Count {
+			walls = walls[:xr.Count]
+		}
+		out = append(out, walls)
+	}
+	return out
+}
+
 func expandOneShot(s *Schedule, from, to time.Time) ([]Occurrence, error) {
 	if from.IsZero() || to.IsZero() {
 		return nil, fmt.Errorf("rrule: expansion requires a finite [from, to] window")
@@ -115,10 +166,19 @@ func expandOneShot(s *Schedule, from, to time.Time) ([]Occurrence, error) {
 	loc := s.DTStart.Location()
 	floating := isFloating(loc)
 	w := naiveOf(s.DTStart)
+	ex := map[WallClock]bool{}
 	for _, e := range s.ExDate {
 		if naiveOf(e).Equal(w) {
 			return nil, nil
 		}
+	}
+	for _, walls := range expandExRules(s, w, nil, naiveOf(to)) {
+		for _, exw := range walls {
+			ex[exw] = true
+		}
+	}
+	if ex[w] {
+		return nil, nil
 	}
 	fw, tw := naiveOf(from), naiveOf(to)
 	if w.Before(fw) || tw.Before(w) {
@@ -162,6 +222,14 @@ func sortOccurrences(o []Occurrence) {
 // naiveOccurrences generates the full ordered wall-clock start times
 // (including DTSTART) up to and including until.
 func (r *Rule) naiveOccurrences(start WallClock, until *WallClock) []WallClock {
+	return r.generate(start, until, true)
+}
+
+// generate builds the wall-clock starts up to and including until.
+// includeStart forces DTSTART to be the first element, matching RFC
+// 5545 for RRULE; EXRULE generation passes false because an occurrence
+// is only excluded when the rule's BYxxx parts actually generate it.
+func (r *Rule) generate(start WallClock, until *WallClock, includeStart bool) []WallClock {
 	clockH, clockM, clockS := start.Hour, start.Minute, start.Second
 
 	gen := r.periodGenerator(start)
@@ -206,9 +274,10 @@ func (r *Rule) naiveOccurrences(start WallClock, until *WallClock) []WallClock {
 		}
 	}
 
-	// RFC 5545: DTSTART is always the first instance, even when the
-	// BYxxx parts would not generate it, as long as UNTIL permits.
-	if until == nil || !until.Before(start) {
+	// RFC 5545: for RRULE DTSTART is always the first instance, even
+	// when the BYxxx parts would not generate it, as long as UNTIL
+	// permits. EXRULE keeps only what the rule itself generates.
+	if includeStart && (until == nil || !until.Before(start)) {
 		for i, w := range out {
 			if w.Equal(start) {
 				if i > 0 {
