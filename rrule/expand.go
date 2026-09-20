@@ -2,6 +2,7 @@ package rrule
 
 import (
 	"fmt"
+	"sort"
 	"time"
 )
 
@@ -21,9 +22,15 @@ const maxPeriods = 200_000
 //
 //   - On a spring-forward, a wall time that does not exist causes that
 //     occurrence to be skipped (e.g. 02:30 when 02:00 jumps to 03:00).
+//     A skipped occurrence does not consume COUNT (COUNT counts
+//     instances that exist).
 //   - On a fall-back, an ambiguous wall time resolves to its first
 //     (pre-transition) instant; a single rule instance never expands
 //     twice.
+//
+// UNTIL follows its own form: the UTC "...Z" form bounds an absolute
+// instant (compared in the rule's zone for zoned schedules), while the
+// floating form compares wall clocks as written.
 func Expand(s *Schedule, from, to time.Time) ([]Occurrence, error) {
 	if s == nil {
 		return nil, fmt.Errorf("rrule: nil schedule")
@@ -44,14 +51,25 @@ func Expand(s *Schedule, from, to time.Time) ([]Occurrence, error) {
 	fromW := naiveOf(from)
 	toW := naiveOf(to)
 
-	untilW := ruleUntil(s.Rule)
-	ex := s.exceptionWalls(toW)
+	untilW := ruleUntilWall(s.Rule, loc, floating)
+	ex := s.exceptionWalls(toW, loc, floating)
 
 	cands := s.Rule.naiveOccurrences(naiveOf(s.DTStart), untilW, true)
 
 	var out []Occurrence
 	count := 0
 	for _, w := range cands {
+		occ := Occurrence{Wall: w, Floating: floating, AllDay: s.AllDay}
+		if !floating {
+			inst, ok := materialize(w, loc)
+			if !ok {
+				// Nonexistent local wall time (spring-forward gap).
+				continue
+			}
+			occ.Instant = inst
+		}
+		// COUNT counts instances that exist on the time line; a
+		// spring-forward gap is skipped without consuming one.
 		count++
 		if s.Rule.Count > 0 && count > s.Rule.Count {
 			break
@@ -61,15 +79,6 @@ func Expand(s *Schedule, from, to time.Time) ([]Occurrence, error) {
 		}
 		if w.Before(fromW) || toW.Before(w) {
 			continue
-		}
-		occ := Occurrence{Wall: w, Floating: floating, AllDay: s.AllDay}
-		if !floating {
-			inst, ok := materialize(w, loc)
-			if !ok {
-				// Nonexistent local wall time (spring-forward gap).
-				continue
-			}
-			occ.Instant = inst
 		}
 		out = append(out, occ)
 	}
@@ -107,7 +116,7 @@ func expandOneShot(s *Schedule, from, to time.Time) ([]Occurrence, error) {
 	loc := s.DTStart.Location()
 	floating := isFloating(loc)
 	w := naiveOf(s.DTStart)
-	if s.exceptionWalls(naiveOf(to))[w] {
+	if s.exceptionWalls(naiveOf(to), loc, floating)[w] {
 		return nil, nil
 	}
 	fw, tw := naiveOf(from), naiveOf(to)
@@ -125,11 +134,26 @@ func expandOneShot(s *Schedule, from, to time.Time) ([]Occurrence, error) {
 	return []Occurrence{occ}, nil
 }
 
-func ruleUntil(r *Rule) *WallClock {
+// ruleUntilWall converts r.Until into the wall-clock bound used while
+// generating occurrences for a schedule anchored in loc.
+//
+// RFC 5545: a UTC UNTIL (the "...Z" form) is an absolute instant. For
+// zoned schedules it is compared in the rule's own zone, so here it is
+// expressed as that zone's wall clock; for floating schedules there is
+// no zone to convert in, so the UTC date-time fields are taken
+// literally as wall clocks. A floating UNTIL (no Z) already is a wall
+// clock and is compared as written.
+func ruleUntilWall(r *Rule, loc *time.Location, floating bool) *WallClock {
 	if r == nil || r.Until.IsZero() {
 		return nil
 	}
-	u := naiveOf(r.Until)
+	var u WallClock
+	if r.Until.Location() == time.UTC && !floating {
+		inLoc := r.Until.In(loc)
+		u = naiveOf(inLoc)
+	} else {
+		u = naiveOf(r.Until)
+	}
 	return &u
 }
 
@@ -139,7 +163,7 @@ func ruleUntil(r *Rule) *WallClock {
 // UNTIL) at the expansion window end so generation always terminates;
 // an ExRule occurrence after the window could not remove anything in
 // it anyway.
-func (s *Schedule) exceptionWalls(capW WallClock) map[WallClock]bool {
+func (s *Schedule) exceptionWalls(capW WallClock, loc *time.Location, floating bool) map[WallClock]bool {
 	ex := map[WallClock]bool{}
 	for _, e := range s.ExDate {
 		ex[naiveOf(e)] = true
@@ -147,7 +171,7 @@ func (s *Schedule) exceptionWalls(capW WallClock) map[WallClock]bool {
 	if s.ExRule == nil {
 		return ex
 	}
-	until := ruleUntil(s.ExRule)
+	until := ruleUntilWall(s.ExRule, loc, floating)
 	if until == nil && s.ExRule.Count == 0 {
 		c := capW
 		until = &c
@@ -211,6 +235,11 @@ func (r *Rule) naiveOccurrences(start WallClock, until *WallClock, anchor bool) 
 			for _, d := range days {
 				ordered = append(ordered, d.withClock(clockH, clockM, clockS))
 			}
+			// RFC 5545: BYSETPOS indexes into the period's candidate
+			// set in chronological order. days can arrive out of order
+			// (e.g. YEARLY with an unsorted BYMONTH list like 3,1,2),
+			// so negative positions must never see generator order.
+			sort.Slice(ordered, func(i, j int) bool { return ordered[i].Before(ordered[j]) })
 			for _, pos := range r.BySetPos {
 				idx := pos
 				if idx < 0 {
@@ -226,13 +255,14 @@ func (r *Rule) naiveOccurrences(start WallClock, until *WallClock, anchor bool) 
 				picks = append(picks, d.withClock(clockH, clockM, clockS))
 			}
 		}
+		sort.Slice(picks, func(i, j int) bool { return picks[i].Before(picks[j]) })
 
 		for _, w := range picks {
 			if w.Before(start) {
 				continue
 			}
 			if until != nil && until.Before(w) {
-				return out
+				return finishAnchor(start, until, anchor, out)
 			}
 			out = append(out, w)
 		}
@@ -240,6 +270,10 @@ func (r *Rule) naiveOccurrences(start WallClock, until *WallClock, anchor bool) 
 
 	// RFC 5545: DTSTART is always the first instance, even when the
 	// BYxxx parts would not generate it, as long as UNTIL permits.
+	return finishAnchor(start, until, anchor, out)
+}
+
+func finishAnchor(start WallClock, until *WallClock, anchor bool, out []WallClock) []WallClock {
 	if anchor && (until == nil || !until.Before(start)) {
 		for i, w := range out {
 			if w.Equal(start) {
