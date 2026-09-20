@@ -111,9 +111,16 @@ type Rule struct {
 // ExDate/RDate wall-clock fields are matched directly, so
 // callers may pass them in any location for zoned schedules.
 type Schedule struct {
-	DTStart  time.Time
-	Rule     *Rule // nil means a one-shot event
-	ExDate   []time.Time
+	DTStart time.Time
+	Rule    *Rule // nil means a one-shot event
+	ExDate  []time.Time
+	// ExRule removes whole recurrence instances. It is anchored at
+	// DTSTART just like Rule: every ExRule occurrence wall clock that
+	// matches a Rule/RDATE occurrence removes it. ExRule's own COUNT
+	// and UNTIL bound its counter-sequence (counted from DTSTART); a
+	// rule with neither is cut off at the expansion window so it can
+	// never loop forever.
+	ExRule   *Rule
 	RDate    []time.Time
 	AllDay   bool          // date-only DTSTART; each occurrence occupies a whole day
 	Duration time.Duration // duration of a timed occurrence
