@@ -44,7 +44,7 @@ func Expand(s *Schedule, from, to time.Time) ([]Occurrence, error) {
 	fromW := naiveOf(from)
 	toW := naiveOf(to)
 
-	untilW := ruleUntil(s.Rule)
+	untilW := ruleUntil(s.Rule, loc)
 	ex := s.exceptionWalls(toW)
 
 	cands := s.Rule.naiveOccurrences(naiveOf(s.DTStart), untilW, true)
@@ -52,6 +52,15 @@ func Expand(s *Schedule, from, to time.Time) ([]Occurrence, error) {
 	var out []Occurrence
 	count := 0
 	for _, w := range cands {
+		occ := Occurrence{Wall: w, Floating: floating, AllDay: s.AllDay}
+		if !floating {
+			inst, ok := materialize(w, loc)
+			if !ok {
+				// Nonexistent local wall time (spring-forward gap).
+				continue
+			}
+			occ.Instant = inst
+		}
 		count++
 		if s.Rule.Count > 0 && count > s.Rule.Count {
 			break
@@ -61,15 +70,6 @@ func Expand(s *Schedule, from, to time.Time) ([]Occurrence, error) {
 		}
 		if w.Before(fromW) || toW.Before(w) {
 			continue
-		}
-		occ := Occurrence{Wall: w, Floating: floating, AllDay: s.AllDay}
-		if !floating {
-			inst, ok := materialize(w, loc)
-			if !ok {
-				// Nonexistent local wall time (spring-forward gap).
-				continue
-			}
-			occ.Instant = inst
 		}
 		out = append(out, occ)
 	}
@@ -125,9 +125,13 @@ func expandOneShot(s *Schedule, from, to time.Time) ([]Occurrence, error) {
 	return []Occurrence{occ}, nil
 }
 
-func ruleUntil(r *Rule) *WallClock {
+func ruleUntil(r *Rule, loc *time.Location) *WallClock {
 	if r == nil || r.Until.IsZero() {
 		return nil
+	}
+	if r.Until.Location() == time.UTC && loc != time.UTC && !isFloating(loc) {
+		u := naiveOf(r.Until.In(loc))
+		return &u
 	}
 	u := naiveOf(r.Until)
 	return &u
@@ -147,13 +151,23 @@ func (s *Schedule) exceptionWalls(capW WallClock) map[WallClock]bool {
 	if s.ExRule == nil {
 		return ex
 	}
-	until := ruleUntil(s.ExRule)
+	until := ruleUntil(s.ExRule, s.DTStart.Location())
 	if until == nil && s.ExRule.Count == 0 {
 		c := capW
 		until = &c
 	}
 	start := naiveOf(s.DTStart)
 	walls := s.ExRule.naiveOccurrences(start, until, false)
+	loc := s.DTStart.Location()
+	if !isFloating(loc) {
+		filtered := walls[:0]
+		for _, w := range walls {
+			if _, ok := materialize(w, loc); ok {
+				filtered = append(filtered, w)
+			}
+		}
+		walls = filtered
+	}
 	if s.ExRule.Count > 0 && len(walls) > s.ExRule.Count {
 		walls = walls[:s.ExRule.Count]
 	}
@@ -238,9 +252,11 @@ func (r *Rule) naiveOccurrences(start WallClock, until *WallClock, anchor bool) 
 		}
 	}
 
-	// RFC 5545: DTSTART is always the first instance, even when the
-	// BYxxx parts would not generate it, as long as UNTIL permits.
-	if anchor && (until == nil || !until.Before(start)) {
+	// Without BYSETPOS, DTSTART is always the first instance, even when
+	// the BYxxx parts would not generate it, as long as UNTIL permits.
+	// BYSETPOS explicitly selects from the rule-generated candidate set,
+	// so it must not be bypassed by anchoring.
+	if anchor && len(r.BySetPos) == 0 && (until == nil || !until.Before(start)) {
 		for i, w := range out {
 			if w.Equal(start) {
 				if i > 0 {

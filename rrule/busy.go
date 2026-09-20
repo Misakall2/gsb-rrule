@@ -7,10 +7,10 @@ import (
 )
 
 // BusyIntervals expands every schedule sharing one resource over the
-// half-open window [from, to] and merges the occupied spans into busy
-// blocks on the UTC time line. Spans that overlap or touch (one ends
-// exactly when another begins) become a single block, so the result is
-// ordered, disjoint and non-adjacent.
+// closed occurrence-start window [from, to] and merges the
+// occupied spans into busy blocks on the UTC time line. Spans that
+// overlap or touch (one ends exactly when another begins) become a
+// single block, so the result is ordered, disjoint and non-adjacent.
 //
 // from and to are absolute UTC instants defining the clipping window.
 // loc pins floating schedules to the resource zone (exactly as in
@@ -73,7 +73,7 @@ func wallTimeIn(t time.Time, loc *time.Location) time.Time {
 }
 
 // mergeIntervals sorts the spans, merges overlaps and touches, then
-// clips the resulting blocks to the half-open [from, to] window.
+// clips the resulting blocks to the closed occurrence-start window.
 // Zero-duration spans occupy no time and never merge.
 func mergeIntervals(spans []Interval, from, to time.Time) []Interval {
 	sort.Slice(spans, func(i, j int) bool {
@@ -99,7 +99,7 @@ func mergeIntervals(spans []Interval, from, to time.Time) []Interval {
 
 	out := make([]Interval, 0, len(merged))
 	for _, m := range merged {
-		if !m.End.After(from) || !to.After(m.Start) {
+		if !m.End.After(from) || m.Start.After(to) {
 			continue
 		}
 		if m.Start.Before(from) {
