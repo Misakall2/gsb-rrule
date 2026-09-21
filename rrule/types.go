@@ -80,14 +80,6 @@ func fromStd(d time.Weekday) Weekday {
 	return Weekday(d)
 }
 
-// Floating is the sentinel location for timezone-less "floating"
-// times: the wall clock is kept as written and only gets an instant
-// when pinned to a resource zone. It is a zero-offset location with an
-// empty name, distinguishable from time.UTC by identity.
-var Floating = time.FixedZone("", 0)
-
-func isFloating(loc *time.Location) bool { return loc == Floating }
-
 // Rule is the parsed RRULE. Location carries the TZID semantics:
 // time.UTC means a UTC rule, time.Local or any other loaded location a
 // zoned rule, and nil a floating (timezone-less) rule.

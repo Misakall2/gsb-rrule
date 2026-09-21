@@ -1,9 +1,11 @@
 package rrule
 
-import (
-	"fmt"
-	"time"
-)
+import "time"
+
+// This file is the interval/overlap layer: expansion plus timezone
+// interpretation become half-open UTC intervals, and conflicts are
+// decided there. The boundary rule lives only here: intervals are
+// half-open [Start, End), so back-to-back bookings never overlap.
 
 // Interval is a half-open [Start, End) span on the UTC time line.
 // An event ending exactly when another begins does not overlap.
@@ -15,53 +17,6 @@ type Interval struct {
 // Overlaps reports whether two half-open intervals share any time.
 func (i Interval) Overlaps(j Interval) bool {
 	return i.Start.Before(j.End) && j.Start.Before(i.End)
-}
-
-// OccurrenceInterval converts a single occurrence to a UTC instant
-// interval.
-//
-// Floating occurrences have no timezone of their own, so loc is the
-// resource location used to pin their wall clock to the timeline (for
-// example the meeting room's zone). It is required for floating
-// occurrences and ignored otherwise.
-//
-// An all-day occurrence occupies the whole calendar day in its own
-// frame: midnight to next midnight, and dur is ignored. A timed
-// occurrence uses dur; a zero-duration occurrence occupies no time and
-// never overlaps anything.
-func OccurrenceInterval(o Occurrence, dur time.Duration, loc *time.Location) (Interval, bool, error) {
-	if o.AllDay {
-		if o.Floating {
-			if loc == nil {
-				return Interval{}, false, fmt.Errorf("rrule: floating all-day occurrence needs a location")
-			}
-			start := time.Date(o.Wall.Year, o.Wall.Month, o.Wall.Day, 0, 0, 0, 0, loc)
-			return Interval{Start: start.UTC(), End: start.AddDate(0, 0, 1).UTC()}, true, nil
-		}
-		loc2 := o.Instant.Location()
-		start := time.Date(o.Wall.Year, o.Wall.Month, o.Wall.Day, 0, 0, 0, 0, loc2)
-		return Interval{Start: start.UTC(), End: start.AddDate(0, 0, 1).UTC()}, true, nil
-	}
-
-	var start time.Time
-	if o.Floating {
-		if loc == nil {
-			return Interval{}, false, fmt.Errorf("rrule: floating occurrence needs a resource location")
-		}
-		inst, ok := materialize(o.Wall, loc)
-		if !ok {
-			// The floating wall time does not exist in the resource
-			// zone (spring gap): the booking cannot occur there.
-			return Interval{}, false, nil
-		}
-		start = inst
-	} else {
-		start = o.Instant
-	}
-	if dur <= 0 {
-		return Interval{Start: start.UTC(), End: start.UTC()}, true, nil
-	}
-	return Interval{Start: start.UTC(), End: start.Add(dur).UTC()}, true, nil
 }
 
 // Intervals expands s over the closed window [from, to] and converts

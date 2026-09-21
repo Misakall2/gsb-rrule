@@ -50,26 +50,14 @@ func scheduleIntervalsIn(s *Schedule, fromUTC, toUTC time.Time, loc *time.Locati
 	if s == nil {
 		return nil, fmt.Errorf("rrule: nil schedule")
 	}
-	floating := isFloating(s.DTStart.Location())
-	if floating && loc == nil {
+	if isFloating(s.DTStart.Location()) && loc == nil {
 		return nil, fmt.Errorf("rrule: floating schedule needs a resource location")
 	}
 
-	var fw, tw time.Time
-	if floating {
-		fw = wallTimeIn(fromUTC, loc)
-		tw = wallTimeIn(toUTC, loc)
-	} else {
-		zone := s.DTStart.Location()
-		fw = fromUTC.In(zone)
-		tw = toUTC.In(zone)
-	}
+	// For floating schedules loc (the resource zone) only re-reads the
+	// UTC window's wall fields; pinning happens in OccurrenceInterval.
+	fw, tw := windowInSchedule(s.DTStart.Location(), fromUTC, toUTC, loc)
 	return Intervals(s, fw, tw, loc)
-}
-
-func wallTimeIn(t time.Time, loc *time.Location) time.Time {
-	it := t.In(loc)
-	return time.Date(it.Year(), it.Month(), it.Day(), it.Hour(), it.Minute(), it.Second(), 0, Floating)
 }
 
 // mergeIntervals sorts the spans, merges overlaps and touches, then

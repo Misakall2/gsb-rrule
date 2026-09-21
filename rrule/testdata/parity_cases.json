@@ -1,0 +1,274 @@
+{
+  "cases": [
+    {
+      "name": "daily-count-floating",
+      "kind": "floating",
+      "dtstart": "2024-03-01T09:00:00",
+      "rrule": "FREQ=DAILY;INTERVAL=2;COUNT=5",
+      "from": "2024-01-01T00:00:00",
+      "to": "2025-01-01T23:59:00"
+    },
+    {
+      "name": "month-end-31",
+      "kind": "floating",
+      "dtstart": "2024-01-31T09:00:00",
+      "rrule": "FREQ=MONTHLY;BYMONTHDAY=31;COUNT=6",
+      "from": "2024-01-01T00:00:00",
+      "to": "2025-01-01T23:59:00"
+    },
+    {
+      "name": "month-end-31-implicit",
+      "kind": "floating",
+      "dtstart": "2023-12-31T09:00:00",
+      "rrule": "FREQ=MONTHLY;COUNT=3",
+      "from": "2023-12-01T00:00:00",
+      "to": "2024-06-01T23:59:00"
+    },
+    {
+      "name": "negative-monthday",
+      "kind": "floating",
+      "dtstart": "2024-02-29T09:00:00",
+      "rrule": "FREQ=MONTHLY;BYMONTHDAY=-1;COUNT=4",
+      "from": "2024-02-01T00:00:00",
+      "to": "2024-07-01T23:59:00"
+    },
+    {
+      "name": "yearly-feb29",
+      "kind": "floating",
+      "dtstart": "2024-02-29T09:00:00",
+      "rrule": "FREQ=YEARLY;COUNT=3",
+      "from": "2024-01-01T00:00:00",
+      "to": "2034-01-01T23:59:00"
+    },
+    {
+      "name": "ordinal-2mo",
+      "kind": "floating",
+      "dtstart": "2024-01-08T09:00:00",
+      "rrule": "FREQ=MONTHLY;BYDAY=2MO;COUNT=3",
+      "from": "2024-01-01T00:00:00",
+      "to": "2024-05-01T23:59:00"
+    },
+    {
+      "name": "ordinal-minus-1fr",
+      "kind": "floating",
+      "dtstart": "2024-01-26T09:00:00",
+      "rrule": "FREQ=MONTHLY;BYDAY=-1FR;COUNT=3",
+      "from": "2024-01-01T00:00:00",
+      "to": "2024-05-01T23:59:00"
+    },
+    {
+      "name": "bysetpos-last-weekday",
+      "kind": "floating",
+      "dtstart": "2024-01-31T09:00:00",
+      "rrule": "FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1;COUNT=3",
+      "from": "2024-01-01T00:00:00",
+      "to": "2024-05-01T23:59:00"
+    },
+    {
+      "name": "bysetpos-last-friday",
+      "kind": "floating",
+      "dtstart": "2024-01-05T09:00:00",
+      "rrule": "FREQ=MONTHLY;BYDAY=FR;BYSETPOS=-1;COUNT=3",
+      "from": "2024-01-01T00:00:00",
+      "to": "2024-05-01T23:59:00"
+    },
+    {
+      "name": "bysetpos-positive-multi",
+      "kind": "floating",
+      "dtstart": "2024-01-01T09:00:00",
+      "rrule": "FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=1,-1;COUNT=6",
+      "from": "2024-01-01T00:00:00",
+      "to": "2024-05-01T23:59:00"
+    },
+    {
+      "name": "exdate-rdate",
+      "kind": "floating",
+      "dtstart": "2024-03-04T09:00:00",
+      "rrule": "FREQ=WEEKLY;BYDAY=MO;COUNT=4",
+      "exdate": ["2024-03-11T09:00:00"],
+      "rdate": ["2024-03-12T09:00:00"],
+      "from": "2024-03-01T00:00:00",
+      "to": "2024-04-01T23:59:00"
+    },
+    {
+      "name": "exrule-own-count",
+      "kind": "floating",
+      "dtstart": "2024-03-04T09:00:00",
+      "rrule": "FREQ=WEEKLY;BYDAY=MO;COUNT=4",
+      "exrule": "FREQ=WEEKLY;BYDAY=MO;COUNT=2",
+      "from": "2024-03-01T00:00:00",
+      "to": "2024-03-26T23:59:00"
+    },
+    {
+      "name": "exrule-open-ended",
+      "kind": "floating",
+      "dtstart": "2024-03-04T09:00:00",
+      "rrule": "FREQ=WEEKLY;BYDAY=MO;COUNT=3",
+      "exrule": "FREQ=WEEKLY;BYDAY=MO",
+      "from": "2024-03-11T00:00:00",
+      "to": "2024-03-25T23:59:00"
+    },
+    {
+      "name": "exrule-holiday",
+      "kind": "America/New_York",
+      "dtstart": "2024-07-01T09:00:00",
+      "rrule": "FREQ=WEEKLY;BYDAY=MO;COUNT=3",
+      "rdate": ["2024-07-04T09:00:00"],
+      "exrule": "FREQ=WEEKLY;BYDAY=TH;UNTIL=20240704T120000",
+      "from": "2024-06-30T00:00:00",
+      "to": "2024-07-16T00:00:00"
+    },
+    {
+      "name": "until-floating",
+      "kind": "floating",
+      "dtstart": "2024-03-01T09:00:00",
+      "rrule": "FREQ=DAILY;UNTIL=20240305T090000",
+      "from": "2024-03-01T00:00:00",
+      "to": "2024-03-11T23:59:00"
+    },
+    {
+      "name": "until-date-only",
+      "kind": "floating",
+      "dtstart": "2024-03-01T09:00:00",
+      "rrule": "FREQ=DAILY;UNTIL=20240303",
+      "from": "2024-03-01T00:00:00",
+      "to": "2024-03-11T23:59:00"
+    },
+    {
+      "name": "until-utc-zoned",
+      "kind": "America/New_York",
+      "dtstart": "2024-03-01T09:00:00",
+      "rrule": "FREQ=DAILY;UNTIL=20240305T140000Z",
+      "from": "2024-03-01T00:00:00",
+      "to": "2024-03-10T00:00:00"
+    },
+    {
+      "name": "until-utc-zoned-exclusive",
+      "kind": "America/New_York",
+      "dtstart": "2024-03-01T09:00:00",
+      "rrule": "FREQ=DAILY;UNTIL=20240305T135959Z",
+      "from": "2024-03-01T00:00:00",
+      "to": "2024-03-10T00:00:00"
+    },
+    {
+      "name": "until-floating-zoned",
+      "kind": "America/New_York",
+      "dtstart": "2024-03-01T09:00:00",
+      "rrule": "FREQ=DAILY;UNTIL=20240305T090000",
+      "from": "2024-03-01T00:00:00",
+      "to": "2024-03-10T00:00:00"
+    },
+    {
+      "name": "london-until-z",
+      "kind": "Europe/London",
+      "dtstart": "2024-03-29T09:00:00",
+      "rrule": "FREQ=DAILY;UNTIL=20240402T090000Z",
+      "from": "2024-03-29T00:00:00",
+      "to": "2024-04-05T00:00:00"
+    },
+    {
+      "name": "ny-spring-forward-daily",
+      "kind": "America/New_York",
+      "dtstart": "2024-03-09T02:30:00",
+      "rrule": "FREQ=DAILY;COUNT=3",
+      "from": "2024-03-09T00:00:00",
+      "to": "2024-03-12T00:00:00"
+    },
+    {
+      "name": "ny-spring-forward-weekly-count",
+      "kind": "America/New_York",
+      "dtstart": "2024-03-03T02:00:00",
+      "rrule": "FREQ=WEEKLY;BYDAY=SU;COUNT=2",
+      "from": "2024-03-01T00:00:00",
+      "to": "2024-03-24T00:00:00"
+    },
+    {
+      "name": "ny-fall-back-daily",
+      "kind": "America/New_York",
+      "dtstart": "2024-11-02T01:30:00",
+      "rrule": "FREQ=DAILY;COUNT=3",
+      "from": "2024-11-02T00:00:00",
+      "to": "2024-11-05T00:00:00"
+    },
+    {
+      "name": "ny-fall-back-weekly",
+      "kind": "America/New_York",
+      "dtstart": "2024-10-27T01:30:00",
+      "rrule": "FREQ=WEEKLY;BYDAY=SU;COUNT=3",
+      "from": "2024-10-27T00:00:00",
+      "to": "2024-11-11T00:00:00"
+    },
+    {
+      "name": "utc-daily",
+      "kind": "utc",
+      "dtstart": "2024-03-01T09:00:00",
+      "rrule": "FREQ=DAILY;COUNT=2",
+      "from": "2024-03-01T00:00:00",
+      "to": "2024-04-01T00:00:00"
+    },
+    {
+      "name": "weekly-mwf",
+      "kind": "floating",
+      "dtstart": "2024-03-04T10:00:00",
+      "rrule": "FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=6",
+      "from": "2024-03-01T00:00:00",
+      "to": "2024-03-31T23:59:00"
+    },
+    {
+      "name": "weekly-interval-wkst",
+      "kind": "floating",
+      "dtstart": "2024-03-07T08:00:00",
+      "rrule": "FREQ=WEEKLY;INTERVAL=2;BYDAY=TU,SA;WKST=MO",
+      "from": "2024-03-04T00:00:00",
+      "to": "2024-04-01T23:59:00"
+    },
+    {
+      "name": "yearly-bymonth-setpos",
+      "kind": "floating",
+      "dtstart": "2024-01-15T08:00:00",
+      "rrule": "FREQ=YEARLY;BYMONTH=1,7;BYDAY=MO;BYSETPOS=-1;COUNT=4",
+      "from": "2024-01-01T00:00:00",
+      "to": "2026-01-01T23:59:00"
+    },
+    {
+      "name": "one-shot-floating",
+      "kind": "floating",
+      "dtstart": "2024-03-01T09:00:00",
+      "from": "2024-02-25T00:00:00",
+      "to": "2024-03-06T23:59:00"
+    },
+    {
+      "name": "one-shot-zoned",
+      "kind": "America/New_York",
+      "dtstart": "2024-11-03T01:30:00",
+      "from": "2024-11-03T00:00:00",
+      "to": "2024-11-04T00:00:00"
+    },
+    {
+      "name": "allday-zoned",
+      "kind": "America/New_York",
+      "dtstart": "2024-03-06T00:00:00",
+      "allday": true,
+      "from": "2024-03-06T00:00:00",
+      "to": "2024-03-07T00:00:00"
+    },
+    {
+      "name": "exdate-zoned",
+      "kind": "America/New_York",
+      "dtstart": "2024-03-04T09:00:00",
+      "rrule": "FREQ=WEEKLY;BYDAY=MO;COUNT=3",
+      "exdate": ["2024-03-11T09:00:00"],
+      "from": "2024-03-01T00:00:00",
+      "to": "2024-03-26T00:00:00"
+    },
+    {
+      "name": "gap-exrule-count-zoned",
+      "kind": "America/New_York",
+      "dtstart": "2024-03-03T02:00:00",
+      "rrule": "FREQ=WEEKLY;BYDAY=SU;COUNT=3",
+      "exrule": "FREQ=WEEKLY;BYDAY=SU;COUNT=1",
+      "from": "2024-03-01T00:00:00",
+      "to": "2024-03-31T00:00:00"
+    }
+  ]
+}
