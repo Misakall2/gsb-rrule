@@ -1,21 +1,6 @@
 package rrule
 
-import (
-	"fmt"
-	"time"
-)
-
-// Interval is a half-open [Start, End) span on the UTC time line.
-// An event ending exactly when another begins does not overlap.
-type Interval struct {
-	Start time.Time
-	End   time.Time
-}
-
-// Overlaps reports whether two half-open intervals share any time.
-func (i Interval) Overlaps(j Interval) bool {
-	return i.Start.Before(j.End) && j.Start.Before(i.End)
-}
+import "time"
 
 // OccurrenceInterval converts a single occurrence to a UTC instant
 // interval.
@@ -30,38 +15,7 @@ func (i Interval) Overlaps(j Interval) bool {
 // occurrence uses dur; a zero-duration occurrence occupies no time and
 // never overlaps anything.
 func OccurrenceInterval(o Occurrence, dur time.Duration, loc *time.Location) (Interval, bool, error) {
-	if o.AllDay {
-		if o.Floating {
-			if loc == nil {
-				return Interval{}, false, fmt.Errorf("rrule: floating all-day occurrence needs a location")
-			}
-			start := time.Date(o.Wall.Year, o.Wall.Month, o.Wall.Day, 0, 0, 0, 0, loc)
-			return Interval{Start: start.UTC(), End: start.AddDate(0, 0, 1).UTC()}, true, nil
-		}
-		loc2 := o.Instant.Location()
-		start := time.Date(o.Wall.Year, o.Wall.Month, o.Wall.Day, 0, 0, 0, 0, loc2)
-		return Interval{Start: start.UTC(), End: start.AddDate(0, 0, 1).UTC()}, true, nil
-	}
-
-	var start time.Time
-	if o.Floating {
-		if loc == nil {
-			return Interval{}, false, fmt.Errorf("rrule: floating occurrence needs a resource location")
-		}
-		inst, ok := materialize(o.Wall, loc)
-		if !ok {
-			// The floating wall time does not exist in the resource
-			// zone (spring gap): the booking cannot occur there.
-			return Interval{}, false, nil
-		}
-		start = inst
-	} else {
-		start = o.Instant
-	}
-	if dur <= 0 {
-		return Interval{Start: start.UTC(), End: start.UTC()}, true, nil
-	}
-	return Interval{Start: start.UTC(), End: start.Add(dur).UTC()}, true, nil
+	return occurrenceInterval(o, dur, loc)
 }
 
 // Intervals expands s over the closed window [from, to] and converts
@@ -106,14 +60,7 @@ func Conflicts(a, b *Schedule, from, to time.Time, locA, locB *time.Location) (b
 	if err != nil {
 		return false, err
 	}
-	for _, x := range ia {
-		for _, y := range ib {
-			if x.Overlaps(y) {
-				return true, nil
-			}
-		}
-	}
-	return false, nil
+	return anyOverlap(ia, ib), nil
 }
 
 // FirstConflict returns the first pair of overlapping intervals, if any.
@@ -127,12 +74,6 @@ func FirstConflict(a, b *Schedule, from, to time.Time, locA, locB *time.Location
 	if err != nil {
 		return Interval{}, Interval{}, false, err
 	}
-	for _, x := range ia {
-		for _, y := range ib {
-			if x.Overlaps(y) {
-				return x, y, true, nil
-			}
-		}
-	}
-	return Interval{}, Interval{}, false, nil
+	x, y, ok := firstOverlap(ia, ib)
+	return x, y, ok, nil
 }
